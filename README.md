@@ -2,7 +2,7 @@
 
 Simple tool for MS43 (for now) based ECUs that let you easily copy maps between different versions of Firmware of MS43 Siemens ECU using TunerPro definitions.
 
-Get latest release exe HERE <==
+Get latest release exe [HERE](https://github.com/handmade0octopus/ms4x-maploader/releases/latest/download/maploader.exe) <==
 
 
 # Manual run

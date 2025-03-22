@@ -6,8 +6,9 @@ from PyQt5.QtWidgets import (
     QCheckBox, QLineEdit, QSplitter, QSlider, QTableWidget, QTableWidgetItem, QHeaderView, QSizePolicy, QPushButton,
     QComboBox
 )
-from PyQt5.QtGui import QImage, QPixmap, QColor, QCursor
+from PyQt5.QtGui import QImage, QPixmap, QColor, QCursor, QIcon
 from PyQt5.QtCore import Qt, QTimer, pyqtSignal
+import os
 
 # Dark theme stylesheet
 DARK_STYLESHEET = """
@@ -92,11 +93,11 @@ QLabel {
 
 # Color definitions
 # Map visualization colors (RGB format)
-COLOR_COMMON_MAP                    = [128, 128, 128]  # Light gray for common maps
-COLOR_FILE_A_ONLY                   = [139, 0, 0]     # Dark red for File A only
-COLOR_FILE_B_ONLY                   = [255, 0, 0]   # Dark orange for File B only
-COLOR_HIGHLIGHT_DIFFERENT_ADDRESS_A = [255, 255, 0]  # Yellow for mismatched maps
-COLOR_HIGHLIGHT_DIFFERENT_ADDRESS_B = [160, 255, 0]  # Yellow for mismatched maps
+COLOR_COMMON_MAP                    = [96, 96, 96]  # Light gray for common maps
+COLOR_FILE_A_ONLY                   = [96, 0, 0]     # Dark red for File A only
+COLOR_FILE_B_ONLY                   = [128, 0, 0]   # Dark orange for File B only
+COLOR_HIGHLIGHT_DIFFERENT_ADDRESS_A = [96, 96, 0]  # Yellow for mismatched maps
+COLOR_HIGHLIGHT_DIFFERENT_ADDRESS_B = [128, 128, 0]  # Yellow for mismatched maps
 COLOR_BACKGROUND                    = [25, 25, 25]     # Dark gray for background
 COLOR_HIGHLIGHT_MATCH               = [0, 255, 0]  # Green for matched maps (when hovered)
 
@@ -294,6 +295,11 @@ class MainWindow(QMainWindow):
         # New persistent map_entries dictionary
         self.map_entries = {}  # Dictionary to store all map entries by title
         
+        # Track counts for each color category
+        self.green_count = 0
+        self.yellow_count = 0
+        self.red_count = 0
+        
         # Binary file data
         self.binary_data_a = None
         self.binary_data_b = None
@@ -348,9 +354,9 @@ class MainWindow(QMainWindow):
 
         # Filter layout
         filter_layout = QHBoxLayout()
-        self.green_cb = QCheckBox("Green")
-        self.yellow_cb = QCheckBox("Yellow")
-        self.red_cb = QCheckBox("Red")
+        self.green_cb = QCheckBox("G (0)")  # Changed from "Green" to "G (0)"
+        self.yellow_cb = QCheckBox("Y (0)")  # Changed from "Yellow" to "Y (0)"
+        self.red_cb = QCheckBox("R (0)")  # Changed from "Red" to "R (0)"
         self.green_cb.setChecked(True)
         self.yellow_cb.setChecked(True)
         self.red_cb.setChecked(True)
@@ -371,7 +377,7 @@ class MainWindow(QMainWindow):
         self.table_widget.horizontalHeader().setSectionResizeMode(5, QHeaderView.Stretch)  # Description stretches
         self.table_widget.horizontalHeader().setSectionResizeMode(6, QHeaderView.Fixed)  # Checkbox column fixed width
         self.table_widget.setColumnWidth(0, 10)  # Set width for checkbox column
-        self.table_widget.setColumnWidth(1, 52)  # 
+        self.table_widget.setColumnWidth(1, 55)  # 
         self.table_widget.setColumnWidth(2, 12)  #  
         self.table_widget.setColumnHidden(6, True)  # Hide category column (used for filtering)
         self.table_widget.setSortingEnabled(True)
@@ -444,7 +450,7 @@ class MainWindow(QMainWindow):
         # Set the label to have fixed height based on width only
         self.label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.label.setMinimumWidth(256)
-        self.label.setMinimumHeight(50)
+        self.label.setMinimumHeight(256)
         self.label.setScaledContents(True)
         
         # Add orientation toggle button
@@ -693,12 +699,17 @@ class MainWindow(QMainWindow):
         
         # Update the main dictionary
         self.map_entries = new_entries
+        
+        # Update color counts after processing all entries
+        self.update_color_counts()
 
     def update_after_file_load(self):
         """Update visualization and table after loading a file"""
         # Update table column headers with current file names
         self.table_widget.setHorizontalHeaderLabels(["", "Address", "Size", self.file_a_name, self.file_b_name, "Description", "Category"])
     
+        # Update color counts
+        self.update_color_counts()
         
         # Update the table
         self.filter_maps()
@@ -884,7 +895,9 @@ class MainWindow(QMainWindow):
                     
                     
                 if checked:
-                    color[2] = min(255, (color[2] + 255))  # Light blue for checked maps
+                    color[0] = min(255, (color[0] + 64))  # Light blue for checked maps
+                    color[1] = min(255, (color[1] + 64))  # Light blue for checked maps
+                    color[2] = min(255, (color[2] + 64))  # Light blue for checked maps
  
                 #if category == 'yellow': print(color, checked)
                 #else: print(index, title, start, end, checked, category, color)
@@ -1264,14 +1277,10 @@ class MainWindow(QMainWindow):
         """Calculate appropriate scaling based on current orientation and selected range"""
         image_width, image_height = self.visualization_width, self.visualization_height
         
-        # Determine bytes_per_row based on orientation
-        if self._aspect_ratio >= 1.0:  # Landscape mode
-            size = image_width * image_height
-            scale = max(1, round((size / selected_range)** 0.5 - 0.5))
-        else:  # Portrait mode
-            size = image_width * image_height
-            scale = max(1, round((size / selected_range)** 0.5 - 0.5))
-            
+        size = image_width * image_height
+        scale = max(1, round((size / selected_range)** 0.5 - 0.5))
+        #print(selected_range, size, scale, (size / selected_range)** 0.5 - 0.5)            
+        
         return scale
     
     def update_map_to_row_mapping_after_sort(self):
@@ -1530,7 +1539,7 @@ class MainWindow(QMainWindow):
             entry = self.map_entries[file_b_title]
             # Check if we should highlight file B region (different title or yellow category)
             if entry.address_b is not None and (file_b_title != file_a_title or entry.category == 'yellow'):
-                color = COLOR_HIGHLIGHT_COUNTERPART.copy() if entry.category == 'yellow' else COLOR_FILE_A_ONLY.copy()
+                color = COLOR_HIGHLIGHT_COUNTERPART.copy() if entry.category == 'yellow' else COLOR_HIGHLIGHT_MISMATCH.copy()
                 
                 # Highlight the map
                 for address in range(max(entry.address_b, start_offset), min(entry.address_b + entry.size_b, end_offset)):
@@ -1600,6 +1609,29 @@ class MainWindow(QMainWindow):
         # Update visualization
         self.update_visual_representation()
 
+    def update_color_counts(self):
+        """Update the checkbox labels with the current counts of each color category"""
+        # Count maps in each color category
+        green_count = yellow_count = red_count = 0
+        
+        for title, entry in self.map_entries.items():
+            if entry.category == 'green':
+                green_count += 1
+            elif entry.category == 'yellow':
+                yellow_count += 1
+            elif entry.category == 'red':
+                red_count += 1
+        
+        # Update instance variables
+        self.green_count = green_count
+        self.yellow_count = yellow_count
+        self.red_count = red_count
+        
+        # Update checkbox labels
+        self.green_cb.setText(f"G ({green_count})")
+        self.yellow_cb.setText(f"Y ({yellow_count})")
+        self.red_cb.setText(f"R ({red_count})")
+
 # Main execution
 if __name__ == '__main__':
     app = QApplication(sys.argv)
@@ -1609,11 +1641,14 @@ if __name__ == '__main__':
     
     # Create main window without loading files
     main_window = MainWindow()
-    main_window.setWindowTitle("XDF File Comparison Tool")
+    main_window.setWindowTitle("MS4X Map Loader v1.0.0")
+    
+    # Set the window icon
+    icon_path = "m:\\Programming\\python\\maploader\\icon.png"
+    if os.path.exists(icon_path):
+        app.setWindowIcon(QIcon(icon_path))
+    
     main_window.resize(1200, 800)
     main_window.show()
     
     sys.exit(app.exec_())
-    
-    id_iga_tra_inc__n
-    ip_iga_tra_inc__n

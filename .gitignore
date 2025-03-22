@@ -6,6 +6,8 @@
 .vscode/ipch
 .history
 .old
-.testfiles
-.dist
-.build
+testfiles
+dist
+build
+__pycache__
+maploader.spec
